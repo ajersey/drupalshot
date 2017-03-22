@@ -1,0 +1,118 @@
+<?php
+
+/**
+ * @file
+ * Core media asset support for Lightning.
+ */
+
+use Drupal\Core\Asset\AttachedAssetsInterface;
+use Drupal\Core\Entity\Entity\EntityFormDisplay;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\media_entity\MediaBundleInterface;
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function lightning_media_form_entity_browser_media_browser_form_alter(array &$form, FormStateInterface $form_state) {
+  $form['#attached']['library'][] = 'lightning_media/browser.styling';
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_insert().
+ */
+function lightning_media_media_bundle_insert(MediaBundleInterface $bundle) {
+  /** @var \Drupal\field\Entity\FieldConfig $field */
+  $field = FieldConfig::create([
+    'field_name' => 'field_media_in_library',
+    'entity_type' => 'media',
+    'bundle' => $bundle->id(),
+  ]);
+
+  $t = \Drupal::translation();
+  $field
+    ->setSetting('on_label', $t->translate('Saved to my media library'))
+    ->setSetting('off_label', $t->translate('Not in my media library'))
+    ->setLabel($t->translate('Save to my media library'))
+    ->setDefaultValue(TRUE)
+    ->save();
+
+  $form_display = EntityFormDisplay::load('media.' . $bundle->id() . '.default');
+  if (empty($form_display)) {
+    $form_display = EntityFormDisplay::create([
+      'targetEntityType' => 'media',
+      'bundle' => $bundle->id(),
+      'mode' => 'default',
+      'status' => TRUE,
+    ]);
+  }
+  $form_display->setComponent('field_media_in_library', [
+    'type' => 'boolean_checkbox',
+    'settings' => [
+      'display_label' => TRUE,
+    ],
+  ])->save();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function lightning_media_form_entity_embed_dialog_alter(array &$form, FormStateInterface $form_state) {
+  list ($editor, $embed_button) = $form_state->getBuildInfo()['args'];
+
+  /** @var \Drupal\embed\EmbedButtonInterface $embed_button */
+  if ($embed_button->id() == 'media_browser') {
+    $element = &$form['attributes']['data-entity-embed-settings']['view_mode'];
+    if (isset($element['#options']['embedded'])) {
+      $element['#default_value'] = 'embedded';
+    }
+  }
+}
+
+/**
+ * Implements hook_js_settings_alter().
+ */
+function lightning_media_js_settings_alter(array &$settings, AttachedAssetsInterface $assets) {
+  if (empty($settings['ajax'])) {
+    $settings['ajax'] = [];
+  }
+
+  $route_name = \Drupal::routeMatch()->getRouteName();
+  if (strpos($route_name, 'entity_browser') === 0 && isset($settings['ajaxPageState']['libraries'])) {
+    $libraries = explode(',', $settings['ajaxPageState']['libraries']);
+    // If we pretend EB's iframe library has not been previously loaded, it will
+    // ALWAYS be fetched from the server, preventing (in a crappy, kludgey way)
+    // the bug in #2768849.
+    $libraries = array_diff($libraries, ['entity_browser/iframe']);
+    $settings['ajaxPageState']['libraries'] = implode(',', $libraries);
+  }
+}
+
+/**
+ * Implements hook_ajax_render_alter().
+ */
+function lightning_media_ajax_render_alter(array &$data) {
+  if (\Drupal::routeMatch()->getRouteName() == 'entity_embed.dialog') {
+    foreach ($data as &$command) {
+      if ($command['command'] == 'settings' && isset($command['settings']['ajaxPageState']['libraries'])) {
+        $libraries = explode(',', $command['settings']['ajaxPageState']['libraries']);
+        $libraries = array_diff($libraries, ['entity_browser/iframe']);
+        $command['settings']['ajaxPageState']['libraries'] = implode(',', $libraries);
+      }
+    }
+  }
+}
+
+/**
+ * Preprocess function for grid views of the media library.
+ *
+ * @param array $variables
+ *   Template variables.
+ */
+function lightning_media_preprocess_views_view_grid__media(array &$variables) {
+  foreach ($variables['items'] as &$item) {
+    foreach ($item['content'] as &$column) {
+      $column['attributes']['data-selectable'] = 'true';
+    }
+  }
+}

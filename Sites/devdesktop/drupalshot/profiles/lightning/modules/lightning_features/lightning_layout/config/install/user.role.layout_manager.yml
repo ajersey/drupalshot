@@ -1,0 +1,8 @@
+id: layout_manager
+label: 'Layout Manager'
+weight: 2
+langcode: en
+is_admin: false
+permissions:
+  - administer node display
+  - administer panelizer
