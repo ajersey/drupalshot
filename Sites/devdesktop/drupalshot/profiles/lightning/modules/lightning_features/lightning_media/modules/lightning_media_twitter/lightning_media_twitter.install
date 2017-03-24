@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * @file
+ * Contains install and update routines for Lightning Media Twitter.
+ */
+
+/**
+ * Creates the media_browser form display.
+ */
+function lightning_media_twitter_update_8001() {
+  lightning_core_create_config('core_entity_form_display', 'media.tweet.media_browser', 'lightning_media_twitter');
+}

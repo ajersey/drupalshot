@@ -1,0 +1,6 @@
+name: Acquia connector
+type: module
+description: 'Allows Drupal to securely communicate with the Acquia Subscription, and checks for updates to Acquia Drupal.'
+package: Acquia
+core: 8.x
+configure: acquia_connector.settings

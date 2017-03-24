@@ -1,0 +1,4 @@
+bundle: test
+excluded:
+  - system.theme
+required: true

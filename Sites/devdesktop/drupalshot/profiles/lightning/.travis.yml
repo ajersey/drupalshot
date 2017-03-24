@@ -1,0 +1,69 @@
+language: php
+cache:
+  bundler: true
+  apt: true
+  directories:
+    - "$HOME/.composer/cache"
+    - "$HOME/.drush/cache"
+    - "$HOME/.npm"
+php:
+  - 5.5
+env:
+  - VERSION=HEAD
+  - VERSION=8.x-1.04
+  - VERSION=8.x-1.03
+  - VERSION=8.x-1.02
+  - VERSION=8.x-1.01
+  - VERSION=8.x-1.00
+
+sudo: false
+
+mysql:
+  database: drupal
+  username: root
+  encoding: utf8
+
+before_install:
+  - phpenv config-rm xdebug.ini
+  - composer self-update
+  - composer --version
+
+install:
+  # Add Composer's local bin directory to the PATH so that we will be running
+  # our installed versions of Drush, PHPCS, Behat, PhantomJS, etc.
+  - export PATH="$HOME/.composer/vendor/bin:$TRAVIS_BUILD_DIR/bin:$PATH"
+
+  # Composer install should fail on bad patches.
+  - export COMPOSER_EXIT_ON_PATCH_FAILURE=1
+
+  # MySQL Options
+  - mysql -e 'SET GLOBAL wait_timeout = 5400;'
+  - mysql -e "SHOW VARIABLES LIKE 'wait_timeout'"
+
+  # PHP conf tweaks
+  - echo 'max_execution_time = 120' >> drupal.php.ini;
+  - echo 'sendmail_path = /bin/true' >> drupal.php.ini;
+  - phpenv config-add drupal.php.ini
+  - phpenv rehash
+
+  # Build the Lightning code base.
+  - composer global require phing/phing
+  - phing build -Dversion=$VERSION -Dbranch=$TRAVIS_COMMIT
+
+  # Install Lightning.
+  - phing install -Ddb.database=drupal
+  # Execute database updates if we're not building from HEAD.
+  - if [ $VERSION != "HEAD" ]; then phing update; fi
+
+before_script:
+  - cd docroot
+  - drush runserver --default-server=builtin 8080 &>/dev/null &
+  - phantomjs --webdriver=4444 > /dev/null &
+  - sleep 5
+
+script:
+  - cd ./profiles/lightning
+  - behat --strict
+
+matrix:
+  fast_finish: true
